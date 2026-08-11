@@ -62,10 +62,6 @@ go test ./examples/...   # テスト実行(今はこちらが実体)
 
 `furumai test` のような専用のテスト実行コマンドはまだ無い。
 
-## タスク管理
-
-GitHub Issuesではなく [`issues/`](./issues/README.md) ディレクトリで行っている。
-
 ## License
 
 [MIT](./LICENSE)
