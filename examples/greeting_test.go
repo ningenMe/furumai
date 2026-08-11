@@ -1,6 +1,6 @@
-// Package examples demonstrates the given/when/then DSL. Stimulus and
-// observation here are plain function calls rather than real adapters
-// (HTTP, DB, Kafka, ...), which are added in later tasks.
+// Package examples demonstrates the given/when/then DSL. This file uses
+// plain function calls as Stimulus/Observation; see http_test.go for an
+// example using the HTTP adapter.
 package examples
 
 import (
