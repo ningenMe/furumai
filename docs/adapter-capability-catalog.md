@@ -212,8 +212,10 @@ gRPCは`Response{Message, StatusCode, Trailer}`、GraphQLは
 
 - Redis / Generic Queue / RPC / Object Storage / Inbound Trigger の
   着手順序
-- 構造diffエンジンの実装方式（`reflect.DeepEqual`ベース、`go-cmp`
-  ベース、独自実装等）
+- 構造diffエンジンの実装方式。外部ライブラリ依存最小化の方針
+  （core-design-direction.md参照）から、`go-cmp`等の外部ライブラリより
+  まず`reflect.DeepEqual`ベース/標準ライブラリのみでの独自実装を優先
+  検討する
 - matcher primitive（`Any`/`Regex`/`Within`/`Ignore`/`AnyOrder`等）の
   具体的なAPI形状
 - `Eventually`を実装上どのレイヤーに置くか（design doc 5章のCore
