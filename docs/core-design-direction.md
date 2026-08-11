@@ -17,6 +17,26 @@ runtime、plugin architecture、application lifecycle management、assertion
 API）は本ドキュメントでも確定しない。複数案を比較し、Furumaiの価値を最も強く
 実現する案を推奨として示すに留める。
 
+## 横断的な方針: 外部ライブラリ依存の最小化
+
+個別のセクションの決定に先立つ、Furumai全体を貫く大方針として、
+**外部ライブラリへの依存は極力最小限にする**。標準ライブラリで実現
+できることは標準ライブラリで行い、外部依存を追加する場合は「本当に
+代替不可能か」を都度問う。
+
+理由:
+
+- テストフレームワークという性質上、多くのプロジェクトの開発フローに
+  組み込まれるため、依存が多いほどsupply chain riskが増す
+- 依存の少なさは単一バイナリでの配布（4章）というFurumaiの価値と直接
+  結びつく
+- 依存のアップデート・破壊的変更への追従コストを避けたい
+
+ただし、DB driver・Kafka clientのように標準ライブラリでは代替できない
+プロトコル対応は例外として許容する。その場合も、CGO依存や多数の
+transitive dependencyを持つライブラリより、pure Go実装で依存が少ない
+ものを優先する（4章のKafka client選定基準も参照）。
+
 ---
 
 ## 1. Core concept
@@ -299,8 +319,11 @@ suite間・suite内テスト間ともに並列実行、共有可変状態への�
 - Stimulus adapter: HTTP request、shell command、DB操作（MySQL）、
   Kafka publish
 - Observation adapter: HTTP response、DB state query（MySQL）、
-  Kafka message、stdout/exit code、基本的なAssertion API（等価性・
-  部分一致・存在確認程度）
+  Kafka message、stdout/exit code。Assertion APIは「静的な期待フル
+  ステートを定義し、実際の状態をオンメモリに取得して構造的に突合する」
+  モデルを採用する（詳細は
+  [`docs/adapter-capability-catalog.md`](./adapter-capability-catalog.md)
+  のAssertionモデル節を参照）
 - Environment Manager: Docker経由でのMySQL/Kafkaのライフサイクル
   管理、汎用container spec による任意コンテナのescape hatch
 - 実行モデル: suite単位のデフォルト並列実行、`serial`指定による
