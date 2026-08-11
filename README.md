@@ -10,11 +10,11 @@ HTTP API、scheduled batch、Kafka subscriber、queue worker、CLI、webhookな�
 
 テストは `given` / `when` / `then` の3ステップで構成する。
 
-- `given`: テストの前提条件を整える（seed dataの投入など）
-- `when`: システムに刺激を与える（HTTP request、Kafka publish、shell commandなど）
+- `given`: テストの前提条件を整えるための刺激を与える（DB seed、事前のKafka publishなど）
+- `when`: 検証対象そのものの刺激を与える（HTTP request、Kafka publish、shell commandなど）
 - `then`: 刺激の結果を観測・検証する（HTTP response、DB state、stdoutなど）
 
-`when`/`then` は特定のプロトコルに縛られない汎用的なステップとして設計している。現時点ではHTTP/DB/Kafkaといった具体的なadapterはまだ無く、`when`/`then` の中身は呼び出し側が直接書く関数になる（adapterは今後のタスクで追加していく）。
+`given`/`when`/`then` は特定のプロトコルに縛られない汎用的なステップとして設計している。`given`と`when`はどちらも同じ種類の操作（Stimulus）で、違いはシナリオ内での役割だけ。現時点ではHTTP/DB/Kafkaといった具体的なadapterはまだ無く、各ステップの中身は呼び出し側が直接書く関数になる（adapterは今後のタスクで追加していく）。
 
 ```go
 package examples
