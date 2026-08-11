@@ -14,9 +14,15 @@ type command struct {
 	run   func(w io.Writer, args []string) int
 }
 
-var commands = []command{
-	{name: "version", usage: "Print the furumai version", run: runVersion},
-	{name: "help", usage: "Show this help message", run: runHelp},
+// commands returns the command registry. It's a function rather than a
+// package-level var because runHelp (one of the run funcs below) calls
+// printUsage, which lists commands — a package-level var composite literal
+// referencing runHelp would create an initialization cycle.
+func commands() []command {
+	return []command{
+		{name: "version", usage: "Print the furumai version", run: runVersion},
+		{name: "help", usage: "Show this help message", run: runHelp},
+	}
 }
 
 func main() {
@@ -34,7 +40,7 @@ func run(stdout, stderr io.Writer, args []string) int {
 		name = "help"
 	}
 
-	for _, cmd := range commands {
+	for _, cmd := range commands() {
 		if cmd.name == name {
 			return cmd.run(stdout, args[1:])
 		}
@@ -59,7 +65,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "Usage: furumai <command>")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Commands:")
-	for _, cmd := range commands {
+	for _, cmd := range commands() {
 		fmt.Fprintf(w, "  %-10s %s\n", cmd.name, cmd.usage)
 	}
 }
