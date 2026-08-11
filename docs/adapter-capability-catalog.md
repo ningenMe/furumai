@@ -1,7 +1,7 @@
 ---
 status: draft
 created: 2026-08-11
-related: docs/core-design-direction.md, issues/0006-adapter-capability-catalog.md
+related: docs/core-design-direction.md, issues/0006-adapter-capability-catalog.md, issues/0007-assertion-model.md
 ---
 
 # Adapter Capability Catalog
@@ -39,6 +39,52 @@ MQ・RPCは複数の具体的な製品が同じ形のcapabilityを共有する�
 実装は「大分類ごとの共通interface」+「製品ごとの差分吸収層」という
 2層構成を想定する。
 
+## Assertionモデル: 期待フルステート + オンメモリ突合
+
+`then`は個別の値を1つずつimperativeに検証していくのではなく、次の
+2ステップに集約する。
+
+1. **取得**: テストのnamespace/filterでスコープした範囲の実際の状態を、
+   まるごとオンメモリの値として取得する（Observation adapterの役割は
+   ここまで）
+2. **突合**: 期待する状態を`given`/`when`と同じテストコード内にstatic
+   な値（struct/slice/map）として書き、取得した実際の値と構造的に比較
+   （diff）する。差分があれば一括して失敗として報告する
+
+これにより、システムごとに大量のassertメソッド（`RowExists`/
+`ColumnEquals`/`HeaderEquals`/`BodyJSONEquals`...）を個別に用意する
+必要がなくなり、`then`のAPIは実質「取得」+「共通diffエンジン」の2つに
+収束する。以降、各システムのObservationは個別assertメソッドの列挙では
+なく「フルステートの形」として記述する。
+
+### Matcher（非決定的な値への対処）
+
+完全一致だけだと、自動採番ID・`created_at`のようなtimestamp・UUID等の
+フィールドで毎回失敗してしまう。期待値の中に埋め込めるmatcher
+primitiveが必要になる。
+
+- `Any()` — 値を問わない（存在確認のみ）
+- `AnyOf(candidates...)`
+- `Regex(pattern)`
+- `Within(min, max)` — 数値・時刻の範囲
+- `Ignore()` — 比較対象から除外
+- `AnyOrder()` — スライスの順序を問わない（Kafkaのpartition跨ぎ等、順序保証が無い大分類向け）
+
+### スコープの注意
+
+「フルステート」は文字通りシステム全体（テーブル全体、topic全体等）
+ではなく、6章のデータ名前空間規約でフィルタされた、そのテストに関係
+する範囲に限定する。
+
+### Eventually（非同期な結果を待つ）
+
+worker処理待ちなど非同期なシナリオ（issue #1で示されている「Kafka
+publish → workerが処理 → HTTP API呼び出し → DB state検証」のような
+流れ）では、「取得 → 突合」を単発で行うのではなく、一定時間内に突合が
+成功するまでポーリングする`Eventually(timeout, interval)`が必須になる。
+HTTP/RDB/MQ/KVSいずれの`then`にも横断的に必要になるため、個別adapter
+ではなくAssertionモデルの共通基盤として設計する。
+
 ## HTTP
 
 **Stimulus（given/when）**
@@ -48,14 +94,11 @@ MQ・RPCは複数の具体的な製品が同じ形のcapabilityを共有する�
 - body: JSON, form-urlencoded, multipart/form-data, raw bytes
 - 認証: Basic, Bearer token, カスタムheader
 
-**Observation（then）**
+**Observation（then） — フルステートの形**
 
-- `StatusCode`（完全一致） / `StatusCodeClass`（2xx/4xx/5xx等）
-- `Header` / `HeaderExists` / `HeaderAbsent`
-- `BodyEquals` / `BodyContains` / `BodyMatches`（regex）/ `BodyEmpty`
-- `BodyJSONEquals`（構造比較） / `BodyJSONPath`（部分抽出+比較）
-- `ContentType`
-- `ResponseTimeWithin`（duration）
+`Response{StatusCode, Headers, Body}` を1つ取得し、期待する`Response`
+値と構造比較する。部分一致・型のみ確認したい場合は、Headers/Bodyの
+値としてmatcher（`Contains`/`Regex`等）を埋め込む。
 
 ## Process（shell command）
 
@@ -63,12 +106,10 @@ MQ・RPCは複数の具体的な製品が同じ形のcapabilityを共有する�
 
 - `Run(cmd, args, opts)` — opts: env, cwd, stdin, timeout
 
-**Observation（then）**
+**Observation（then） — フルステートの形**
 
-- `ExitCode`
-- `Stdout` の `Equals` / `Contains` / `Matches` / `JSONEquals`
-- `Stderr` の `Equals` / `Contains` / `Matches`
-- `DurationWithin`
+`Result{ExitCode, Stdout, Stderr}` を1つ取得し、期待する`Result`値と
+構造比較する。
 
 ## RDB（MySQL, PostgreSQL）
 
@@ -78,14 +119,12 @@ MQ・RPCは複数の具体的な製品が同じ形のcapabilityを共有する�
 - `Seed(table, rows...)` — 構造化されたseedヘルパー
 - `Truncate(table...)`
 
-**Observation（then）**
+**Observation（then） — フルステートの形**
 
-- `RowExists(table, conditions)`
-- `RowCount(table, conditions)` の `Equals`
-- `RowEquals(table, conditions, wantRow)` — 1行の全カラム比較
-- `ColumnEquals(table, conditions, column, want)`
-- `QueryEquals(sql, args, want)` — 任意クエリ結果の比較
-- `NoRows(table, conditions)`
+フィルタ条件（テストのnamespace）にマッチする`[]Row`をまるごと取得し、
+期待する`[]Row`と構造比較する。行が存在しないことを期待する場合は
+空sliceを期待値にする。auto-incrementのID・timestampはmatcherで対処
+する。
 
 MySQLとPostgreSQLはこのcapabilityを共通interfaceとして共有し、
 adapter実装側でdriver・SQL方言差分（placeholder記法等）を吸収する
@@ -101,13 +140,11 @@ adapter実装側でdriver・SQL方言差分（placeholder記法等）を吸収�
 - データ構造別操作（`HSet`/`LPush`/`SAdd`/`ZAdd`等）
 - `FlushDB`（テスト間クリーンアップ用。危険な操作なので明示的opt-inを必須にする）
 
-**Observation（then）**
+**Observation（then） — フルステートの形**
 
-- `Exists` / `NotExists`
-- `ValueEquals(key, want)`
-- `TTLWithin(key, min, max)`
-- `KeyPatternCount(pattern, want)`
-- データ構造別assert（`ListEquals`/`SetContains`/`HashFieldEquals`等）
+パターン（テストのnamespace）にマッチする`map[string]Value`を取得し、
+期待するmapと構造比較する。TTLは`Within(min, max)`のようなmatcherで
+範囲指定する。
 
 ## MQ（Kafka）
 
@@ -116,19 +153,19 @@ adapter実装側でdriver・SQL方言差分（placeholder記法等）を吸収�
 - `Publish(topic, key, value, headers, opts: partition)`
 - `PublishJSON(topic, key, valueStruct)`
 
-**Observation（then）**
+**Observation（then） — フルステートの形**
 
-- `ConsumeMessage(topic, within)` — 1件受信
-- `MessageEquals` / `MessageJSONEquals(topic, want, within)`
-- `NoMessage(topic, within)` — 一定時間メッセージが来ないことの検証（否定的検証）
-- `MessageCount(topic, want, within)`
-- `MessageHeaderEquals(topic, key, want)`
+指定window内でtopicから受信した`[]Message`を取得し、期待する
+`[]Message`と構造比較する。メッセージが無いことを期待する場合は
+空slice。Kafkaはpartition間の順序を保証しないため、`AnyOrder()`
+matcherの利用を想定する。
 
 ## MQ（Generic Queue、例: SQS/RabbitMQ）
 
-Kafkaと同じMQ大分類のcapability（Publish/Consume）を踏襲しつつ、
-queue特有の「消費したら消える」「順序保証が無い場合がある」という
-性質から、ack/visibility timeoutのような概念が追加で必要になる。
+Kafkaと同じMQ大分類のcapability（Publish/Consume、フルステート
++ matcherによるObservation）を踏襲しつつ、queue特有の「消費したら
+消える」「順序保証が無い場合がある」という性質から、ack/visibility
+timeoutのような概念が追加で必要になる。
 
 ## RPC（gRPC, GraphQL）
 
@@ -137,10 +174,10 @@ queue特有の「消費したら消える」「順序保証が無い場合があ
 - gRPC: Unary call、Streaming call
 - GraphQL: query/mutation実行
 
-**Observation（then）**
+**Observation（then） — フルステートの形**
 
-- gRPC: response、status code、trailer
-- GraphQL: response body、errors配列
+gRPCは`Response{Message, StatusCode, Trailer}`、GraphQLは
+`Response{Data, Errors}`を1つ取得し、期待値と構造比較する。
 
 ## Object Storage（S3等）
 
@@ -148,35 +185,21 @@ queue特有の「消費したら消える」「順序保証が無い場合があ
 
 - `PutObject`
 
-**Observation（then）**
+**Observation（then） — フルステートの形**
 
-- `ObjectExists`
-- `ObjectContentEquals`
+`Object{Key, Content, Metadata}`（または非存在）を取得し、期待値と
+構造比較する。
 
 ## Inbound Trigger（Webhook受信 / Cron）
 
 大分類として他と異なり、「Furumai側が受動的に刺激を観測する」もしくは
 「時刻を進める/手動発火する」という特殊な形を取る。
 
-- Webhook受信: 対象システムからのwebhookをFurumai側で受け止めて観測
-  するための簡易HTTPサーバー（Observation側の特殊系）
+- Webhook受信: 対象システムからのwebhookをFurumai側で受け止め、受信
+  した`[]Request`をフルステートとして取得・比較する（Observation側の
+  特殊系）
 - Cron/scheduled batch trigger: 時刻を進める/手動トリガーする
   （Stimulus側の特殊系）
-
-## 横断的な基盤（Assertion API / 非同期待ち）
-
-個別adapter・個別大分類に属さない、共通のObservation基盤。
-
-- 比較プリミティブ: `Equal` / `Contains` / `Matches`（regex）/ `GreaterThan` 等
-- **`Eventually(fn, timeout, interval)`**: worker処理待ちなど非同期な
-  シナリオ（issue #1で示されている「Kafka publish → workerが処理 →
-  HTTP API呼び出し → DB state検証」のような流れ）では、単発チェック
-  ではなく「一定時間内に条件が満たされることを待つ」ポーリング型の
-  assertionが必須になる。HTTP/RDB/MQ/KVSいずれの `then` にも横断的に
-  必要になるため、個別adapterのメソッドではなくAssertion API層の
-  共通基盤として設計する。
-- assertionの合成: `Not` / `And` / `Or`
-- 汎用Health/Readiness check（TCP/HTTP。Environment Managerとの境界領域）
 
 ## 実装優先順位（案）
 
@@ -189,6 +212,10 @@ queue特有の「消費したら消える」「順序保証が無い場合があ
 
 - Redis / Generic Queue / RPC / Object Storage / Inbound Trigger の
   着手順序
-- `Eventually`等の横断的基盤を実装上どのレイヤーに置くか（design doc
-  5章のCore architectureとの対応関係）
+- 構造diffエンジンの実装方式（`reflect.DeepEqual`ベース、`go-cmp`
+  ベース、独自実装等）
+- matcher primitive（`Any`/`Regex`/`Within`/`Ignore`/`AnyOrder`等）の
+  具体的なAPI形状
+- `Eventually`を実装上どのレイヤーに置くか（design doc 5章のCore
+  architectureとの対応関係）
 - Generic Queueとして最初にサポートする具体的な製品（SQS/RabbitMQ等）

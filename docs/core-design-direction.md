@@ -299,8 +299,11 @@ suite間・suite内テスト間ともに並列実行、共有可変状態への�
 - Stimulus adapter: HTTP request、shell command、DB操作（MySQL）、
   Kafka publish
 - Observation adapter: HTTP response、DB state query（MySQL）、
-  Kafka message、stdout/exit code、基本的なAssertion API（等価性・
-  部分一致・存在確認程度）
+  Kafka message、stdout/exit code。Assertion APIは「静的な期待フル
+  ステートを定義し、実際の状態をオンメモリに取得して構造的に突合する」
+  モデルを採用する（詳細は
+  [`docs/adapter-capability-catalog.md`](./adapter-capability-catalog.md)
+  のAssertionモデル節を参照）
 - Environment Manager: Docker経由でのMySQL/Kafkaのライフサイクル
   管理、汎用container spec による任意コンテナのescape hatch
 - 実行モデル: suite単位のデフォルト並列実行、`serial`指定による
