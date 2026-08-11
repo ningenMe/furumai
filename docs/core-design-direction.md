@@ -30,7 +30,11 @@ Furumaiのcore conceptは、issue #1が掲げる以下の一文に集約され�
 1. **刺激（stimulus）とプロトコルの分離**
    `when` はHTTP requestに限定されない。shell command、DB操作、Kafka
    publish、queue投入など、「システムに変化を起こす操作」全般を同じ抽象
-   （Stimulus）として扱う。
+   （Stimulus）として扱う。`given`もこれと同じ抽象（Stimulus）を使う。
+   `given`と`when`の違いはプロトコルではなく、シナリオ内での役割（前提
+   状態を作るための刺激か、検証対象そのものの刺激か）でしかない。例えば
+   `given`でのDB seedと`when`でのDB操作は、実装上は同じDB adapterの
+   呼び出しである。
 2. **観測（observation）とプロトコルの分離**
    `then` も同様に、HTTP response、DB state、Kafka message、stdout/exit
    codeなど「外部から観測可能な状態」全般を同じ抽象（Observation）として
@@ -44,9 +48,9 @@ Furumaiのcore conceptは、issue #1が掲げる以下の一文に集約され�
 この結果、Furumaiは「API testing framework」でも「既存BDD/E2E framework
 の模倣」でもなく、**任意のプロトコルのStimulus/Observationをプラガブルな
 adapterとして扱う、汎用的な"システム刺激応答検証エンジン"** として位置づけ
-られる。given/when/thenという構造自体は目新しくないが、`when`/`then`が
-特定プロトコルに縛られない点、および高速な並列実行がコアバリューである点が、
-既存フレームワークとの差別化要因になる。
+られる。given/when/thenという構造自体は目新しくないが、`given`/`when`/
+`then`のいずれも特定プロトコルに縛られない点、および高速な並列実行が
+コアバリューである点が、既存フレームワークとの差別化要因になる。
 
 ## 2. 想定されるユーザー体験（UX）
 
@@ -204,7 +208,7 @@ Option Aを前提としたレイヤー構成:
 │  テストグラフの構築、スケジューラ（並列/直列）    │
 ├───────────────────┬───────────────────────────┤
 │ Stimulus Adapters   │ Observation Adapters      │
-│ (when)              │ (then)                    │
+│ (given/when共用)     │ (then)                    │
 │  - HTTP request      │  - HTTP response          │
 │  - shell command      │  - DB state query         │
 │  - DB操作             │  - Kafka message           │
@@ -222,7 +226,10 @@ Option Aを前提としたレイヤー構成:
 
 Stimulus/Observation adapterは共通のインターフェースを実装する形にし、
 MVPでは組み込みadapterのみを提供するが、将来のplugin化（10章）に
-備えてこの境界だけは最初から明確にしておく。
+備えてこの境界だけは最初から明確にしておく。Stimulus Adapterは`given`
+（前提状態を作るための刺激）と`when`（検証対象そのものの刺激）の両方から
+同じものを呼び出す。両者の違いはadapterの種類ではなく、シナリオ内での
+役割でしかない。
 
 ## 6. Test execution model
 
