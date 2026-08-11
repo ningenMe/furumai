@@ -97,14 +97,17 @@ adapterとして扱う、汎用的な"システム刺激応答検証エンジン
   コストを伴う。
 - Dは、静的型付け・IDE補完・型チェックという要件を、既存言語のツール
   チェーンにフリーライドすることで低コストに満たせる。given/when/then
-  の入れ子構造は、trailing lambda構文を持つ言語（例: Kotlin）や
-  アロー関数を持つ言語（例: TypeScript）で自然に表現できる。実際issue
-  本文のサンプルコード自体が、trailing lambda DSL（Kotlin的な構文）に
-  近い見た目をしている。
+  の入れ子構造をtrailing lambda構文（Kotlin等）で書くと最も見た目が
+  美しいが、4章で述べる通りFurumaiでは起動速度・エコシステム成熟度を
+  優先してGo/Rust系のホスト言語を推奨する。その場合、trailing lambda
+  ほどの構文的な美しさは無いものの、関数リテラル/クロージャとbuilder
+  APIの組み合わせで同等の型安全性・補完・parameterized testを実現
+  できる（例はGoの場合、下記4章参照）。
 
 **推奨**: **D（内部DSL）**。独自言語（A）のコストとリスクを避けつつ、
-issueが求める「高級言語に近い書き味」を実現できる。ホスト言語の具体候補
-は4章で比較する。
+issueが求める「高級言語に近い書き味」を実現できる。構文の見た目の美しさ
+より、静的型付け・IDE補完・parameterized testのしやすさを優先し、
+ホスト言語の具体候補は4章で比較する。
 
 なお、DSLの具体的なsyntax・ホスト言語そのものはここでは確定しない。
 4章の技術スタック選定と合わせて決定する。
@@ -112,38 +115,62 @@ issueが求める「高級言語に近い書き味」を実現できる。ホス
 ## 4. 技術スタックの候補と比較
 
 Furumai自身の実装言語（エンジン、CLI、環境管理）の候補を比較する。
-評価軸は、並列実行のしやすさ（並列実行はコアバリュー）、配布のしやすさ
-（単一バイナリ等）、周辺エコシステム成熟度（DB/Kafka client、
-container/testcontainers系ライブラリ）、およびテスト記述DSLのホスト
+評価軸は、**テスト実行の起動速度**（コアバリューである「大量のシステム
+テストを短時間で繰り返し実行できること」に直結する）、並列実行のしやすさ、
+配布のしやすさ（単一バイナリ等）、周辺エコシステム成熟度（DB/Kafka
+client、container/testcontainers系ライブラリ）、テスト記述DSLのホスト
 言語としての適性（3章）である。
 
-| 候補 | 並行処理モデル | 配布 | Testcontainers系ライブラリ成熟度 | DSLホストとしての適性 | 備考 |
+| 候補 | 起動速度 | 並行処理モデル | 配布 | Testcontainers系ライブラリ成熟度 | 備考 |
 |---|---|---|---|---|---|
-| Go | goroutine（軽量・実績豊富） | 単一静的バイナリ | 高い（testcontainers-go） | 低い（trailing lambda構文がなく、given/when/thenのネスト表現がやや冗長） | CLIツールとしての配布は最強クラス |
-| Rust | async/tokio（高性能） | 単一静的バイナリ | 発展途上（testcontainers-rs） | 中（クロージャ構文はあるが所有権/lifetimeの学習コストがDSL利用者にも波及） | 性能は最高だが開発速度・コントリビューションコストが高い |
-| Kotlin (JVM) | coroutine（構造化並行性） | JAR（+ GraalVM native-imageで単一バイナリ化可） | 最高（Testcontainers発祥のJVMエコシステム） | 高い（trailing lambda構文がgiven/when/thenと自然に一致、null安全、data class） | DSLホストとエンジン実装言語を統一しやすい |
-| TypeScript (Node.js) | event loop + async/await（I/O待ち中心の並列実行と親和性が高い） | npm、または単一バイナリ化ツール（pkg等） | 中程度（testcontainers-node） | 高い（アロー関数でネスト表現可、エコシステム最大級） | 認知度・採用ハードルの低さが強み |
+| Go | 非常に高速（ネイティブバイナリ、VM起動なし、~数ms） | goroutine（軽量・実績豊富、I/Oバウンドな並列実行に強い） | 単一静的バイナリ（CGO無しでクロスコンパイルも容易） | 高い（testcontainers-go） | Kafka clientもpure Go実装（例: segmentio/kafka-go）があり、CGO非依存のまま静的バイナリを維持しやすい |
+| Rust | 非常に高速（ネイティブバイナリ、GCも無くGoよりさらに有利な場面もある） | async/tokio（高性能だが関数の同期/非同期の色分けが波及する） | 単一静的バイナリ | 発展途上（testcontainers-rs） | 主要Kafka client（rdkafka）はC実装（librdkafka）へのバインディングで、静的バイナリ配布がGoよりやや煩雑になりやすい。所有権/lifetimeの学習コストが高い |
+| Kotlin (JVM) | 遅い（JVM起動100〜500ms + JITウォームアップ。GraalVM native-imageで緩和可能だが、reflectionを使うDB/Kafka clientとの相性問題が出やすい） | coroutine（構造化並行性） | JAR、またはnative-image | 最高（Testcontainers発祥のJVMエコシステム） | 起動速度がコアバリューと相性が悪く、MVPでは不採用 |
+| TypeScript (Node.js) | 中程度（Node起動50〜100ms。JVMよりは速いがネイティブバイナリには及ばない） | event loop + async/await | npm、または単一バイナリ化ツール（pkg等） | 中程度（testcontainers-node） | 認知度は高いが起動速度でGo/Rustに劣る |
 
 **比較の要点**
 
-- Furumaiのテストは「対象システムへの刺激とその観測」がI/O待ち中心
-  であり、CPUバウンドな並列処理性能そのもの（Go/Rustの得意領域）が
-  決定的な差別化要因にはなりにくい。むしろ、3章で推奨した「内部DSL」の
-  ホスト言語としての書き味と、環境管理に必須のcontainer/testcontainers
-  エコシステムの成熟度の方が価値に直結する。
-- issue本文のgiven/when/thenサンプルは、trailing lambda構文を持つ
-  言語で最も自然に書ける。KotlinはTestcontainers発祥のJVMエコシステム
-  でもあり、DB/Kafka clientの成熟度も高い。
-- Go/Rustは環境管理・実行エンジン単体としては強いが、DSLホストとしての
-  書き味で劣り、かつMVPでは「DSLホスト言語」と「エンジン実装言語」を
-  分離する複雑さ（プロセス間通信、plugin protocol等）を負うほどの
-  メリットがまだない（10章の将来拡張で検討）。
+- Furumaiは「大量のシステムテストを短時間で繰り返し実行できること」を
+  コアバリューとするため、CLIの起動自体が重いKotlin(JVM)は、たとえ
+  GraalVM native-imageで緩和したとしても複雑さに見合わない。TypeScript
+  も同様にネイティブコンパイル言語には起動速度で劣る。
+- Go・Rustはどちらもネイティブコンパイルの単一バイナリで、起動速度の面
+  では実質互角（ミリ秒オーダー）。差が出るのは、①並行処理モデルの扱い
+  やすさ、②周辺adapter（特にKafka client）の実装しやすさと静的バイナリ
+  配布の単純さ、③コントリビューションのしやすさ、の3点。
+- Goのgoroutine + 同期I/Oスタイルは、「多数のテストが並列にHTTP/DB/
+  Kafkaへのブロッキング呼び出しを行う」というFurumaiの実行モデルと
+  自然に一致し、async/awaitの色分け問題を回避できる。Kafka client
+  もpure Go実装があるため、CGOに依存せずクロスプラットフォームの
+  静的バイナリを保てる。
+- Rustは理論上の性能・メモリ安全性で優位だが、主要Kafka clientがC
+  ライブラリ（librdkafka）へのバインディングであるため静的バイナリ
+  配布がGoよりやや煩雑になり、所有権/lifetimeの学習コストがadapter
+  実装やコントリビューションのハードルを上げる。
 
-**推奨**: MVPでは**Kotlin (JVM)** を、DSLホスト言語兼エンジン実装言語
-として単一採用する（5章のOption Aに対応）。配布上のJVM依存は、
-GraalVM native-imageによる単一バイナリ化で緩和できる。TypeScriptは
-採用ハードルの低さで次点の有力候補であり、将来的な多言語対応
-（10章）の最初の追加候補としても位置づける。
+**推奨**: MVPでは**Go**を、DSLホスト言語兼エンジン実装言語として
+単一採用する（5章のOption Aに対応）。起動速度・並行処理モデルの
+シンプルさ・Kafka/DB adapter実装の容易さ・単一静的バイナリでの配布
+しやすさを総合的に評価した結果である。**Rust**は将来、性能要件が
+より厳しくなった場合（例: 非常に高い並列度でのメモリ効率が問題に
+なる場合）の代替候補として明記しておく。
+
+DSLは3章の通りGoの関数リテラル/builder APIで表現する。例えば以下の
+ような書き味を想定する（構文は未確定）。
+
+```go
+furumai.Test("order created event triggers notification", func(t *furumai.T) {
+    t.Given(seedOrder(orderID))
+    t.When(publishKafka("orders", orderCreatedEvent(orderID)))
+    t.Then(
+        expectHTTPResponse(notificationAPI, 200),
+        expectDBRow("notifications", "order_id", orderID),
+    )
+})
+```
+
+Parameterized testは、Goのtable-driven testパターン（Goの標準的な
+テストイディオムそのもの）と自然に統合できる。
 
 ## 5. Core architecture
 
@@ -151,14 +178,14 @@ DSLホスト言語とエンジン実装言語をどう分離するかで、2つ�
 案がある。
 
 - **Option A: 単一言語モノリス** — DSL・実行エンジン・adapter・
-  環境管理をすべて同一言語（4章の推奨: Kotlin）で実装する。プロセス
+  環境管理をすべて同一言語（4章の推奨: Go）で実装する。プロセス
   間通信が不要で、型がプロセス境界をまたがず共有される。実装コストが
   最小で、MVPに向く。
 - **Option B: エンジンとDSLの分離** — 実行エンジン・環境管理を
-  systems言語（Go/Rust）、DSLホストを別言語（TypeScript等）とし、
-  IPC（gRPC等）で接続する。真の意味での「テスト記述言語の多言語対応」
-  を早期に実現できるが、plugin protocolの設計・維持コストをMVPの
-  時点から負うことになる。
+  Go/Rust、DSLホストを別言語（TypeScript等）とし、IPC（gRPC等）で
+  接続する。真の意味での「テスト記述言語の多言語対応」を早期に
+  実現できるが、plugin protocolの設計・維持コストをMVPの時点から
+  負うことになる。
 
 **推奨**: MVPは**Option A（単一言語モノリス）**。Option Bが提供する
 「複数言語でテストを書ける」という価値は、v0のスコープ（1言語で
@@ -260,8 +287,8 @@ suite間・suite内テスト間ともに並列実行、共有可変状態への�
 
 **含む**
 
-- Kotlinによる内部DSL（`given`/`when`/`then`ブロック、data classと
-  コレクションを用いたparameterized test）
+- Goによる内部DSL（`given`/`when`/`then`をbuilder API/関数リテラルで
+  表現、table-driven testパターンによるparameterized test）
 - Stimulus adapter: HTTP request、shell command、DB操作（Postgres）、
   Kafka publish
 - Observation adapter: HTTP response、DB state query（Postgres）、
@@ -301,11 +328,15 @@ suite間・suite内テスト間ともに並列実行、共有可変状態への�
   （分散システムの障害調査を容易にする）。
 - **フレーキーテスト対策**: 自動リトライポリシー、flake検知・
   隔離。
-- **多言語DSL対応**: Option B（5章）へ段階的に移行し、Kotlin以外の
+- **多言語DSL対応**: Option B（5章）へ段階的に移行し、Go以外の
   言語（TypeScript等）からも同一エンジンを利用できるようにする
   （plugin protocol経由）。これにより「Furumai自身の実装言語と、
   テスト記述言語を分離する」というissueの理念を、テスト対象言語だけ
   でなくテスト記述言語についても拡張する。
+- **Rustへの部分的な移行検討**: Goの並行モデル・GCが将来的に性能上の
+  ボトルネックになった場合、パフォーマンスが特にクリティカルな
+  コンポーネント（例: 高並列度のExecution Engine）に限定してRustへの
+  移行を検討する。
 - **Contract/Snapshot testing拡張**: `then`ブロックでAPIスキーマ
   適合性検証やレスポンスのスナップショット比較を行うAssertion API
   拡張。
@@ -314,8 +345,8 @@ suite間・suite内テスト間ともに並列実行、共有可変状態への�
 
 | 項目 | 推奨 | 未決/将来検討 |
 |---|---|---|
-| テスト記述方式 | 内部DSL（既存言語のtrailing lambda/builder構文） | 具体的なsyntax |
-| 技術スタック | Kotlin (JVM) 単一言語モノリス | 配布形態の詳細（GraalVM native-image採用可否） |
+| テスト記述方式 | 内部DSL（既存言語のbuilder API/関数リテラル構文） | 具体的なsyntax |
+| 技術スタック | Go 単一言語モノリス（起動速度・Kafka adapter実装の容易さを優先） | 将来的なRustへの部分移行の要否 |
 | Core architecture | Test Definition / Execution Engine / Stimulus・Observation Adapters / Environment Manager / Reporter の5層 | Plugin protocolの具体設計 |
 | Test execution model | 共有環境 + データ名前空間規約 | スナップショット/ロールバック方式への拡張 |
 | Environment management | Docker + Postgres/Kafka組み込みadapter + 汎用container spec | Podman等の追加runtime対応 |
