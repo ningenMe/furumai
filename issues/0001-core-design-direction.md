@@ -1,5 +1,5 @@
 ---
-status: open
+status: done
 created: 2026-08-10
 related: https://github.com/ningenMe/furumai/issues/1
 ---
