@@ -59,7 +59,7 @@ adapterとして扱う、汎用的な"システム刺激応答検証エンジン
 1. **導入**: Furumai CLIをインストールする（対象言語・フレームワークとは
    独立した単一バイナリ、または対応言語のパッケージマネージャ経由）。
 2. **環境定義**: プロジェクト設定に、テストに必要な周辺基盤
-   （PostgreSQL、Kafkaなど）を宣言する。アプリケーション本体は対象外
+   （MySQL、Kafkaなど）を宣言する。アプリケーション本体は対象外
    （既に起動している前提）。
 3. **テスト記述**: 型付き言語（またはそのDSL）で `given / when / then`
    ブロックを記述する。IDEの補完・型チェックが効き、YAML/JSONの設定ファイル
@@ -253,7 +253,7 @@ MVPでは組み込みadapterのみを提供するが、将来のplugin化（10�
 
 ## 7. Environment management model
 
-- テストに必要な周辺基盤（PostgreSQL、Kafka等）はプロジェクト設定に
+- テストに必要な周辺基盤（MySQL、Kafka等）はプロジェクト設定に
   宣言し、Furumaiがテスト実行前にcontainer runtime経由で起動する。
 - 対象アプリケーション自体はFurumaiの責務外（既に起動している前提）
   であり、Environment Managerが管理するのはあくまで「対象アプリが
@@ -263,7 +263,7 @@ MVPでは組み込みadapterのみを提供するが、将来のplugin化（10�
   デフォルトとしつつ、ローカル開発時の高速化のため、明示的な
   再利用モード（同一コンテナをrun間で使い回す）を用意する
   （Testcontainersのreuse機能に相当）。
-- MVPでは、issueで明示されているPostgreSQL・Kafkaを組み込み
+- MVPでは、issueで明示されているMySQL・Kafkaを組み込み
   adapterとして提供し、それ以外は「イメージ・ポート・環境変数・
   ヘルスチェックを直接指定できる汎用container spec」で対応する
   escape hatchを用意する。Redis等の追加組み込みadapterは10章の
@@ -296,12 +296,12 @@ suite間・suite内テスト間ともに並列実行、共有可変状態への�
 
 - Goによる内部DSL（`given`/`when`/`then`をbuilder API/関数リテラルで
   表現、table-driven testパターンによるparameterized test）
-- Stimulus adapter: HTTP request、shell command、DB操作（Postgres）、
+- Stimulus adapter: HTTP request、shell command、DB操作（MySQL）、
   Kafka publish
-- Observation adapter: HTTP response、DB state query（Postgres）、
+- Observation adapter: HTTP response、DB state query（MySQL）、
   Kafka message、stdout/exit code、基本的なAssertion API（等価性・
   部分一致・存在確認程度）
-- Environment Manager: Docker経由でのPostgres/Kafkaのライフサイクル
+- Environment Manager: Docker経由でのMySQL/Kafkaのライフサイクル
   管理、汎用container spec による任意コンテナのescape hatch
 - 実行モデル: suite単位のデフォルト並列実行、`serial`指定による
   直列化、共有環境+データ名前空間規約による分離
@@ -356,7 +356,7 @@ suite間・suite内テスト間ともに並列実行、共有可変状態への�
 | 技術スタック | Go 単一言語モノリス（起動速度・Kafka adapter実装の容易さを優先） | 将来的なRustへの部分移行の要否 |
 | Core architecture | Test Definition / Execution Engine / Stimulus・Observation Adapters / Environment Manager / Reporter の5層 | Plugin protocolの具体設計 |
 | Test execution model | 共有環境 + データ名前空間規約 | スナップショット/ロールバック方式への拡張 |
-| Environment management | Docker + Postgres/Kafka組み込みadapter + 汎用container spec | Podman等の追加runtime対応 |
+| Environment management | Docker + MySQL/Kafka組み込みadapter + 汎用container spec | Podman等の追加runtime対応 |
 | Parallel/serial model | suite単位の粗粒度切り替え | DAGベースの細粒度依存関係 |
 | MVPスコープ | 9章参照 | — |
 
