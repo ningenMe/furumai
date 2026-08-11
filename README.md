@@ -2,33 +2,19 @@
 
 Furumaiは、サーバーサイドシステムの振る舞いを、実装言語やフレームワークに依存せずテストするためのフレームワーク。
 
-コンセプトや設計方針は [GitHub Issue #1](https://github.com/ningenMe/furumai/issues/1) を参照。
+> Stimulate the system, observe its behavior, and verify the result.
 
-## ステータス
+HTTP API、scheduled batch、Kafka subscriber、queue worker、CLI、webhookなど、サーバーサイドで発生する処理を「システムへの刺激」として扱い、その結果として観測される状態やイベントを検証する。設計方針の詳細は [`docs/core-design-direction.md`](./docs/core-design-direction.md)、経緯は [GitHub Issue #1](https://github.com/ningenMe/furumai/issues/1) を参照。
 
-v0開発中(private)。タスク管理は GitHub Issues ではなく [`issues/`](./issues/README.md) ディレクトリで行っている。
-設計方針の詳細は [`docs/core-design-direction.md`](./docs/core-design-direction.md) を参照。
+## DSL
 
-## 現在のUsage
+テストは `given` / `when` / `then` の3ステップで構成する。
 
-まだMVPの土台部分のみで、機能は最小限。
+- `given`: テストの前提条件を整える（seed dataの投入など）
+- `when`: システムに刺激を与える（HTTP request、Kafka publish、shell commandなど）
+- `then`: 刺激の結果を観測・検証する（HTTP response、DB state、stdoutなど）
 
-### CLI
-
-```sh
-go build ./...
-./furumai version   # バージョン表示
-./furumai help      # ヘルプ表示
-```
-
-`furumai test` のような専用のテスト実行コマンドはまだ無い（後述の通り、
-現状は `go test` にフリーライドしている）。
-
-### テストの書き方（DSL）
-
-`given`/`when`/`then` は `*testing.T` を受け取る薄い関数として提供されて
-おり、実行自体はGo標準の `go test` を使う（独自の実行エンジンはまだ
-無い）。
+`when`/`then` は特定のプロトコルに縛られない汎用的なステップとして設計している。現時点ではHTTP/DB/Kafkaといった具体的なadapterはまだ無く、`when`/`then` の中身は呼び出し側が直接書く関数になる（adapterは今後のタスクで追加していく）。
 
 ```go
 package examples
@@ -62,12 +48,23 @@ func TestExample(t *testing.T) {
 }
 ```
 
+`given`/`when`/`then` は `*testing.T` を受け取る薄い関数で、実行自体はGo標準の `go test` にそのまま乗せている（独自の実行エンジンはまだ無い）。Parameterized testはGoのtable-driven testパターンで書ける。サンプル一式は [`examples/`](./examples) を参照。
+
+## Usage
+
 ```sh
-go test ./examples/...
+go build ./...
+./furumai version   # バージョン表示
+./furumai help      # ヘルプ表示
+
+go test ./examples/...   # テスト実行(今はこちらが実体)
 ```
 
-サンプル一式は [`examples/`](./examples) を参照。HTTP/DB/Kafkaなどの
-adapterはまだ無く、`when`/`then` の中身は自前の関数呼び出しになる。
+`furumai test` のような専用のテスト実行コマンドはまだ無い。
+
+## タスク管理
+
+GitHub Issuesではなく [`issues/`](./issues/README.md) ディレクトリで行っている。
 
 ## License
 
