@@ -4,63 +4,63 @@ Furumaiは、サーバーサイドシステムの振る舞いを、実装言語�
 
 > Stimulate the system, observe its behavior, and verify the result.
 
-HTTP API、scheduled batch、Kafka subscriber、queue worker、CLI、webhookなど、サーバーサイドで発生する処理を「システムへの刺激」として扱い、その結果として観測される状態やイベントを検証する。設計方針の詳細は [`docs/core-design-direction.md`](./docs/core-design-direction.md)、経緯は [GitHub Issue #1](https://github.com/ningenMe/furumai/issues/1) を参照。
+HTTP API、DB、Kafka、shell commandなど、サーバーサイドで発生する処理を「システムへの刺激」として扱い、その結果として観測される状態を検証する。
 
-## DSL
+## Setup
 
-テストは `given` / `when` / `then` の3ステップで構成する。
+```sh
+go get github.com/ningenMe/furumai
+```
 
-- `given`: テストの前提条件を整えるための刺激を与える（DB seed、事前のKafka publishなど）
-- `when`: 検証対象そのものの刺激を与える（HTTP request、Kafka publish、shell commandなど）
-- `then`: 刺激の結果を観測・検証する（HTTP response、DB state、stdoutなど）
+## Usage
 
-`given`/`when`/`then` は特定のプロトコルに縛られない汎用的なステップとして設計している。`given`と`when`はどちらも同じ種類の操作（Stimulus）で、違いはシナリオ内での役割だけ。現時点ではHTTP/DB/Kafkaといった具体的なadapterはまだ無く、各ステップの中身は呼び出し側が直接書く関数になる（adapterは今後のタスクで追加していく）。
+テストは `given` / `when` / `then` の3ステップで書く。
+
+- `given`: テストの前提条件を整える（DB seed、事前のKafka publishなど）
+- `when`: 検証対象そのものに刺激を与える（HTTP request、shell commandなど）
+- `then`: 刺激の結果を観測し、期待するフルステートと構造比較する
 
 ```go
 package examples
 
 import (
-	"fmt"
+	"net/http"
 	"testing"
 
 	"github.com/ningenMe/furumai"
 )
 
-func TestExample(t *testing.T) {
-	var got string
+func TestGreetingAPI(t *testing.T) {
+	client := furumai.NewHTTPStimulus("http://localhost:8080")
 
-	furumai.Given(t, func() error {
-		got = ""
-		return nil
-	})
+	var resp *furumai.Response
 
 	furumai.When(t, func() error {
-		got = "hello"
-		return nil
+		var err error
+		resp, err = client.Get("/greeting", furumai.WithQuery("name", "Alice"))
+		return err
 	})
 
-	furumai.Then(t, func() error {
-		if got != "hello" {
-			return fmt.Errorf("got %q", got)
-		}
-		return nil
+	furumai.ThenEqual(t, *resp, furumai.Response{
+		StatusCode: http.StatusOK,
+		Headers:    furumai.Ignore(),
+		Body:       `{"greeting":"hello, Alice"}`,
 	})
 }
 ```
 
-`given`/`when`/`then` は `*testing.T` を受け取る薄い関数で、実行自体はGo標準の `go test` にそのまま乗せている（独自の実行エンジンはまだ無い）。Parameterized testはGoのtable-driven testパターンで書ける。サンプル一式は [`examples/`](./examples) を参照。
+`given`と`when`は同じStimulus adapter（上の例では`HTTPStimulus`）を共用する。`then`は期待する完全な状態を1つの構造体として書き、`furumai.ThenEqual`が実際の状態との差分を全てまとめて報告する。値の一部だけを確認したい場合は`Any()`/`Regex()`/`Within()`/`Ignore()`/`AnyOrder()`といったmatcherを埋め込める。
 
-## Usage
+テストの実行は通常の`go test`。Parameterized testもGoのtable-driven testパターンでそのまま書ける。より多くのサンプルは[`examples/`](./examples)を参照。
+
+### furumaiコマンド
 
 ```sh
-go build ./...
-./furumai version   # バージョン表示
-./furumai help      # ヘルプ表示
+go install github.com/ningenMe/furumai/cmd/furumai@latest
 
-go test ./examples/...   # テスト実行(今はこちらが実体)
+furumai version   # バージョン表示
+furumai help      # ヘルプ表示
 ```
-
-`furumai test` のような専用のテスト実行コマンドはまだ無い。
 
 ## License
 
