@@ -47,3 +47,6 @@ Observation adapterとしてHTTPを実装する。
   （`Any`/`Ignore`等）をそのまま埋め込めるようにした。
 - `examples/http_test.go`に`httptest.Server`を使ったサンプルを追加
   （`net/http/httptest`は標準ライブラリなので依存最小化方針に反しない）。
+- 追記: 後日`adapter/rest`パッケージに移動（`HTTPStimulus`→
+  `rest.Stimulus`、`net/http`との名前衝突を避けるため）。root
+  package（`furumai`）はDSLとdiffエンジンのみを持つ構成にした。

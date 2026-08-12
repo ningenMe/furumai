@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ningenMe/furumai"
+	"github.com/ningenMe/furumai/adapter/rest"
 )
 
 // TestGreetingAPI demonstrates the HTTP Stimulus/Observation adapter: when
@@ -23,17 +24,17 @@ func TestGreetingAPI(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := furumai.NewHTTPStimulus(srv.URL)
+	client := rest.NewStimulus(srv.URL)
 
-	var resp *furumai.Response
+	var resp *rest.Response
 
 	furumai.When(t, func() error {
 		var err error
-		resp, err = client.Get("/greeting", furumai.WithQuery("name", "Alice"))
+		resp, err = client.Get("/greeting", rest.WithQuery("name", "Alice"))
 		return err
 	})
 
-	furumai.ThenEqual(t, *resp, furumai.Response{
+	furumai.ThenEqual(t, *resp, rest.Response{
 		StatusCode: http.StatusOK,
 		Headers:    furumai.Ignore(),
 		Body:       `{"greeting":"hello, Alice"}`,

@@ -1,5 +1,5 @@
 // Package examples demonstrates the given/when/then DSL. This file uses
-// plain function calls as Stimulus/Observation; see http_test.go for an
+// plain function calls as Stimulus/Observation; see rest_test.go for an
 // example using the HTTP adapter.
 package examples
 
