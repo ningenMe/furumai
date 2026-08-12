@@ -1,13 +1,15 @@
-package furumai
+package rest
 
 import (
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/ningenMe/furumai"
 )
 
-func TestHTTPStimulusGet(t *testing.T) {
+func TestStimulusGet(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || r.URL.Path != "/greeting" {
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
@@ -24,12 +26,12 @@ func TestHTTPStimulusGet(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewHTTPStimulus(srv.URL)
+	client := NewStimulus(srv.URL)
 
 	var resp *Response
-	Given(t, func() error { return nil })
+	furumai.Given(t, func() error { return nil })
 
-	When(t, func() error {
+	furumai.When(t, func() error {
 		var err error
 		resp, err = client.Get("/greeting",
 			WithQuery("name", "Alice"),
@@ -38,14 +40,14 @@ func TestHTTPStimulusGet(t *testing.T) {
 		return err
 	})
 
-	ThenEqual(t, *resp, Response{
+	furumai.ThenEqual(t, *resp, Response{
 		StatusCode: http.StatusOK,
-		Headers:    Any(),
+		Headers:    furumai.Any(),
 		Body:       `{"greeting":"hello, Alice"}`,
 	})
 }
 
-func TestHTTPStimulusPost(t *testing.T) {
+func TestStimulusPost(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != "/users" {
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
@@ -62,36 +64,36 @@ func TestHTTPStimulusPost(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewHTTPStimulus(srv.URL)
+	client := NewStimulus(srv.URL)
 
 	var resp *Response
-	When(t, func() error {
+	furumai.When(t, func() error {
 		var err error
 		resp, err = client.Post("/users", []byte(`{"name":"Bob"}`))
 		return err
 	})
 
-	ThenEqual(t, *resp, Response{
+	furumai.ThenEqual(t, *resp, Response{
 		StatusCode: http.StatusCreated,
-		Headers:    Ignore(),
+		Headers:    furumai.Ignore(),
 		Body:       `{"id":1,"name":"Bob"}`,
 	})
 }
 
-func TestHTTPStimulusMismatchReportsDiff(t *testing.T) {
+func TestStimulusMismatchReportsDiff(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	defer srv.Close()
 
-	client := NewHTTPStimulus(srv.URL)
+	client := NewStimulus(srv.URL)
 
 	resp, err := client.Get("/missing")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
 
-	diffs := Diff(*resp, Response{StatusCode: http.StatusOK, Headers: Ignore(), Body: Ignore()})
+	diffs := furumai.Diff(*resp, Response{StatusCode: http.StatusOK, Headers: furumai.Ignore(), Body: furumai.Ignore()})
 	if len(diffs) == 0 {
 		t.Fatal("Diff() = empty, want a StatusCode mismatch")
 	}

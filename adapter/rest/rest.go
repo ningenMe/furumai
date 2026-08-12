@@ -1,4 +1,5 @@
-package furumai
+// Package rest is furumai's HTTP Stimulus/Observation adapter.
+package rest
 
 import (
 	"bytes"
@@ -7,21 +8,21 @@ import (
 	"net/url"
 )
 
-// HTTPStimulus sends HTTP requests against BaseURL. It is used from both
-// given and when steps, since Stimulus adapters are shared between them.
-type HTTPStimulus struct {
+// Stimulus sends HTTP requests against BaseURL. It is used from both given
+// and when steps, since Stimulus adapters are shared between them.
+type Stimulus struct {
 	BaseURL string
 	Client  *http.Client
 }
 
-// NewHTTPStimulus returns an HTTPStimulus using http.DefaultClient.
-func NewHTTPStimulus(baseURL string) *HTTPStimulus {
-	return &HTTPStimulus{BaseURL: baseURL, Client: http.DefaultClient}
+// NewStimulus returns a Stimulus using http.DefaultClient.
+func NewStimulus(baseURL string) *Stimulus {
+	return &Stimulus{BaseURL: baseURL, Client: http.DefaultClient}
 }
 
 // Response is the full-state Observation for an HTTP request. Headers and
-// Body are typed any so a Matcher (Any, Regex, ...) can be substituted for
-// either when building an expected Response.
+// Body are typed any so a furumai.Matcher (Any, Regex, ...) can be
+// substituted for either when building an expected Response.
 type Response struct {
 	StatusCode int
 	Headers    any
@@ -45,35 +46,35 @@ func WithQuery(key, value string) RequestOption {
 	}
 }
 
-func (s *HTTPStimulus) Get(path string, opts ...RequestOption) (*Response, error) {
+func (s *Stimulus) Get(path string, opts ...RequestOption) (*Response, error) {
 	return s.do(http.MethodGet, path, nil, opts...)
 }
 
-func (s *HTTPStimulus) Post(path string, body []byte, opts ...RequestOption) (*Response, error) {
+func (s *Stimulus) Post(path string, body []byte, opts ...RequestOption) (*Response, error) {
 	return s.do(http.MethodPost, path, body, opts...)
 }
 
-func (s *HTTPStimulus) Put(path string, body []byte, opts ...RequestOption) (*Response, error) {
+func (s *Stimulus) Put(path string, body []byte, opts ...RequestOption) (*Response, error) {
 	return s.do(http.MethodPut, path, body, opts...)
 }
 
-func (s *HTTPStimulus) Patch(path string, body []byte, opts ...RequestOption) (*Response, error) {
+func (s *Stimulus) Patch(path string, body []byte, opts ...RequestOption) (*Response, error) {
 	return s.do(http.MethodPatch, path, body, opts...)
 }
 
-func (s *HTTPStimulus) Delete(path string, opts ...RequestOption) (*Response, error) {
+func (s *Stimulus) Delete(path string, opts ...RequestOption) (*Response, error) {
 	return s.do(http.MethodDelete, path, nil, opts...)
 }
 
-func (s *HTTPStimulus) Head(path string, opts ...RequestOption) (*Response, error) {
+func (s *Stimulus) Head(path string, opts ...RequestOption) (*Response, error) {
 	return s.do(http.MethodHead, path, nil, opts...)
 }
 
-func (s *HTTPStimulus) Options(path string, opts ...RequestOption) (*Response, error) {
+func (s *Stimulus) Options(path string, opts ...RequestOption) (*Response, error) {
 	return s.do(http.MethodOptions, path, nil, opts...)
 }
 
-func (s *HTTPStimulus) do(method, path string, body []byte, opts ...RequestOption) (*Response, error) {
+func (s *Stimulus) do(method, path string, body []byte, opts ...RequestOption) (*Response, error) {
 	u, err := url.JoinPath(s.BaseURL, path)
 	if err != nil {
 		return nil, err
