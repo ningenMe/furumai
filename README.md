@@ -20,6 +20,8 @@ go get github.com/ningenMe/furumai
 - `when`: 検証対象そのものに刺激を与える（HTTP request、shell commandなど）
 - `then`: 刺激の結果を観測し、期待するフルステートと構造比較する
 
+`given`/`when`が呼ぶ処理を **Stimulus**、`then`が検証する値を **Observation** と呼ぶ。冒頭の "Stimulate the system, observe its behavior, and verify the result." はこの対応をそのまま表しており、各protocol adapterの型名・関数名もこの語彙に沿って付けている。
+
 ```go
 package examples
 
