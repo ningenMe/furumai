@@ -8,6 +8,19 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    services:
+      cassandra:
+        image: cassandra:5
+        ports:
+          - 9042:9042
+        options: >-
+          --health-cmd="cqlsh -e 'describe keyspaces'"
+          --health-interval=15s
+          --health-timeout=10s
+          --health-retries=15
+          --health-start-period=60s
+
     steps:
       - uses: actions/checkout@v4
 
@@ -25,4 +38,6 @@ jobs:
         run: go build ./...
 
       - name: go test
+        env:
+          CASSANDRA_HOSTS: 127.0.0.1
         run: go test ./...
