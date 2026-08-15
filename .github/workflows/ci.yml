@@ -8,6 +8,21 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    services:
+      localstack:
+        image: localstack/localstack:3
+        env:
+          SERVICES: s3
+        ports:
+          - 4566:4566
+        options: >-
+          --health-cmd="curl -sf http://localhost:4566/_localstack/health"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+          --health-start-period=20s
+
     steps:
       - uses: actions/checkout@v4
 
@@ -24,5 +39,18 @@ jobs:
       - name: go build
         run: go build ./...
 
+      - name: Create S3 bucket in LocalStack
+        env:
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_DEFAULT_REGION: us-east-1
+        run: aws --endpoint-url=http://127.0.0.1:4566 s3 mb s3://furumai-test
+
       - name: go test
+        env:
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_DEFAULT_REGION: us-east-1
+          S3_ENDPOINT: http://127.0.0.1:4566
+          S3_BUCKET: furumai-test
         run: go test ./...
