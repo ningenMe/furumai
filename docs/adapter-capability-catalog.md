@@ -32,6 +32,7 @@ capability形状を共通化しやすい。
 | MQ（Messaging / Message Queue） | publish/consumeによる非同期メッセージング | Kafka, SQS, RabbitMQ |
 | RPC | スキーマ付きの手続き呼び出し | gRPC, GraphQL |
 | Object Storage | key付きバイナリオブジェクトの操作 | S3等 |
+| NoSQL | "NoSQL"と括られる製品群。ただし操作の形は製品ごとに異なり、この大分類自体は共通capabilityを持たない（下記参照） | DynamoDB, Cassandra |
 | Inbound Trigger | 外部からの受動的な刺激・トリガー | Webhook受信, Cron |
 
 HTTPとProcessはそれ自体が1システムなので大分類=システムだが、RDB・KVS・
@@ -189,6 +190,36 @@ gRPCは`Response{Message, StatusCode, Trailer}`、GraphQLは
 
 `Object{Key, Content, Metadata}`（または非存在）を取得し、期待値と
 構造比較する。
+
+## NoSQL（DynamoDB, Cassandra）
+
+DynamoDBとCassandraは「NoSQL」と括られることが多いが、操作の形は
+共通しない（DynamoDBはKVSに近いkey-value + 属性、Cassandraは
+CQLによるクエリを持ちRDBに近い）。大分類としては分類ラベルとして
+まとめているだけで、capability自体は個別に定義する。
+
+### DynamoDB
+
+**Stimulus（given/when）**
+
+- `PutItem(table, item)`
+- `DeleteItem(table, key)`
+
+**Observation（then） — フルステートの形**
+
+`table`内の`[]Item`（`Item = map[string]any`）をまるごと、または
+`GetItem(table, key)`で単一`Item`を取得し、期待値と構造比較する。
+
+### Cassandra
+
+**Stimulus（given/when）**
+
+- `Exec(cql, args...)` — 任意CQLの実行
+
+**Observation（then） — フルステートの形**
+
+RDBと同様、`Query(cql, args...)`で取得した`[]Row`
+（`Row = map[string]any`）を期待値と構造比較する。
 
 ## Inbound Trigger（Webhook受信 / Cron）
 
