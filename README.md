@@ -6,6 +6,17 @@ Furumaiは、サーバーサイドシステムの振る舞いを、実装言語�
 
 HTTP API、DB、Kafka、shell commandなど、サーバーサイドで発生する処理を「システムへの刺激」として扱い、その結果として観測される状態を検証する。
 
+## このリポジトリの範囲
+
+furumaiが持つのは次の2つ。
+
+- `given`/`when`/`then`のDSL（実行自体はGo標準の`go test`にそのまま乗せる、独自の実行エンジンは持たない）
+- プロトコルごとのStimulus/Observation adapter（`adapter/`配下。HTTP・RDB・KVS・MQ・RPC・Object Storageなど。全体像は[`docs/adapter-capability-catalog.md`](./docs/adapter-capability-catalog.md)を参照）
+
+対象アプリケーションやその周辺基盤（DB、Kafka等）を起動・管理することはfurumaiの範囲外（既に起動している前提）。設計判断の背景は[`docs/core-design-direction.md`](./docs/core-design-direction.md)、個々の意思決定の経緯は[`issues/`](./issues)を参照。
+
+> **Status**: 0.x系で開発中。APIは互換性を壊す変更を伴って変わりうる。
+
 ## Setup
 
 ```sh
