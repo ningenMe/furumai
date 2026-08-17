@@ -75,3 +75,18 @@ adapterとしてMySQLを実装する。
   統合テスト。ローカルのrunnerにはMySQL/Dockerが無いため、動作確認は
   CIの`services: mysql`サービスコンテナに寄せた（ローカルへの
   mysql-server直接installはしない方針）。
+- レビューで「seed/期待値は静的なfixtureとして持ちたい（dbunit
+  準拠）、2行以上・順序不問のテストにしたい」との指摘を受け、
+  `adapter/mysql`に`LoadCSV(path) ([]Row, error)`を追加した。ヘッダ行+
+  データ行のCSVを読み、セルはint64→float64→string の順で型推定する
+  （`normalize`後のDB値と型が揃うようにするための簡易ヒューリスティク
+  ス。DBの列型は見ていないので"007"のようなゼロ埋めは崩れる、
+  という制約をdoc commentに明記）。`examples/testdata/mysql_users.csv`
+  を用意し、同じfixtureをSeed入力とexpected（`furumai.AnyOrder`で
+  ラップ）の両方に使う形にした。
+- `CREATE TABLE`をテストケース内で都度発行している点（レビュー
+  コメント）は、現状の`examples/*_test.go`はunit test相当という
+  位置付けなので今回は変更しないことにした。「テスト全体の最初に
+  1回だけ行うsetupをどうIF化するか」は、furumaiコマンドを実際に
+  叩くe2eテスト（issue #19）の方でテストケースのスコープと分離して
+  検討する。
