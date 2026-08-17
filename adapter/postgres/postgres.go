@@ -83,48 +83,37 @@ func (s *Stimulus) Truncate(tables ...string) error {
 // since map values are any-typed.
 type Row map[string]any
 
-// TableQuery scopes one table within a Snapshot call to a WHERE clause
-// (the test's namespace/filter, per docs/adapter-capability-catalog.md's
-// scoping convention). Use $1, $2, ... placeholders in Where. Where may be
-// empty to fetch every row.
-type TableQuery struct {
-	Table string
-	Where string
-	Args  []any
-}
-
 // DataSet is the full-state Observation for one or more tables, modeled on
-// dbunit's IDataSet: every column of every matching row, per table. Values
-// are any-typed (rather than []Row) so a table's rows can be wrapped in
+// dbunit's IDataSet: every column of every row, per table. Values are
+// any-typed (rather than []Row) so a table's rows can be wrapped in
 // furumai.AnyOrder when row order isn't significant.
 //
-// There is deliberately no way to build a DataSet from a partial query
-// (no column list, no raw SQL): Snapshot always selects every column, so
-// "full state" isn't something a caller can accidentally opt out of.
+// There is deliberately no way to build a DataSet from a partial query (no
+// column list, no WHERE, no raw SQL): Snapshot always selects every column
+// of every row in a table, so "full state" isn't something a caller can
+// opt out of, whether by cherry-picking columns or by cherry-picking rows.
+// Scoping a test to its own data is a test-isolation concern (e.g.
+// Truncate before each test), not something this interface should
+// negotiate away.
 type DataSet map[string]any
 
-// Snapshot fetches the full state of every table in queries (SELECT *,
-// each scoped by its own Where/Args) as a single DataSet, for structural
-// comparison with furumai.Diff/furumai.ThenEqual.
-func (s *Stimulus) Snapshot(queries ...TableQuery) (DataSet, error) {
-	result := make(DataSet, len(queries))
-	for _, q := range queries {
-		rows, err := s.selectAll(q.Table, q.Where, q.Args...)
+// Snapshot fetches the full state of every named table (SELECT *, no
+// filter) as a single DataSet, for structural comparison with
+// furumai.Diff/furumai.ThenEqual.
+func (s *Stimulus) Snapshot(tables ...string) (DataSet, error) {
+	result := make(DataSet, len(tables))
+	for _, table := range tables {
+		rows, err := s.selectAll(table)
 		if err != nil {
-			return nil, fmt.Errorf("snapshot %s: %w", q.Table, err)
+			return nil, fmt.Errorf("snapshot %s: %w", table, err)
 		}
-		result[q.Table] = rows
+		result[table] = rows
 	}
 	return result, nil
 }
 
-func (s *Stimulus) selectAll(table, where string, args ...any) ([]Row, error) {
-	query := `SELECT * FROM "` + table + `"`
-	if where != "" {
-		query += " WHERE " + where
-	}
-
-	rows, err := s.DB.Query(query, args...)
+func (s *Stimulus) selectAll(table string) ([]Row, error) {
+	rows, err := s.DB.Query(`SELECT * FROM "` + table + `"`)
 	if err != nil {
 		return nil, err
 	}

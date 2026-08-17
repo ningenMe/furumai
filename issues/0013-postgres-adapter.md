@@ -39,10 +39,13 @@ capability形状を持つと決めていたPostgreSQLを実装する。
   記法、identifier quoting（`` ` `` → `"`）のみ。
 - MySQL側(#13)のレビューで「生SQLを取る`Query`だと部分的なSELECTでも
   通ってしまい、フルステート比較を強制できていない」と指摘があり、
-  こちらも`Query`を`Snapshot(queries ...TableQuery) (DataSet,
-  error)`に置き換えた。dbunitの`IDataSet`に準え、内部で常に
-  `SELECT *`を発行するため、カラムを選んで一部だけ検証する抜け道が
-  無い。
+  こちらも`Query`を`Snapshot`に置き換えた。さらに、namespace/filter用
+  に追加した`TableQuery.Where`（生SQL文字列）も「1行だけ選んで他の
+  行を隠す」という同種の抜け道になると指摘があり、`Where`/`Args`ごと
+  削除した。最終的に`Snapshot(tables ...string) (DataSet, error)`は
+  常に無条件で`SELECT * FROM table`を発行し、カラム・行のどちらも
+  選べない。テストごとのデータ分離はテスト独立性（`Truncate`等）で
+  担保する方針にした。
 - `pgx/v5`の追加でtransitive依存が5パッケージ増える
   （`pgpassfile`/`pgservicefile`/`puddle/v2`/`x/sync`/`x/text`）。
   `go-sql-driver/mysql`（1つ）より重いが、pure GoでPostgreSQL用に
