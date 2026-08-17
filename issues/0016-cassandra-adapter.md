@@ -14,10 +14,10 @@ related: docs/adapter-capability-catalog.md, issues/0009-mysql-adapter-mvp.md
 - カタログにNoSQL大分類とCassandra/DynamoDBのcapability記述を追加
   （この2つは互いに共通capabilityを持たないことを明記する）
 - Stimulus adapter: `Exec(cql, args...)`
-- Observation: `Snapshot(queries ...TableQuery) (DataSet, error)`で
+- Observation: `Snapshot(tables ...string) (DataSet, error)`で
   テーブルごとの`[]Row`（`Row = map[string]any`）を返す。
   `adapter/mysql`/`adapter/postgres`と同じ、dbunit準拠の
-  full-state-forcing interface
+  full-state-forcing interface（フィルタ無し、常に`SELECT *`）
 
 ## 制約
 
@@ -37,14 +37,18 @@ related: docs/adapter-capability-catalog.md, issues/0009-mysql-adapter-mvp.md
 ## 実装メモ
 
 - `adapter/cassandra`に`Stimulus`（`Exec`/`Snapshot`）、`Row`、
-  `TableQuery`、`DataSet`を実装。gocqlの`MapScan`が列を素のGo型
-  （`[]byte`ではなく）で返すため、`adapter/mysql`/`adapter/postgres`
-  のような`normalize`は不要だった。
+  `DataSet`を実装。gocqlの`MapScan`が列を素のGo型（`[]byte`ではなく）
+  で返すため、`adapter/mysql`/`adapter/postgres`のような`normalize`は
+  不要だった。
 - MySQL側(#13)のレビューで「生SQLを取る`Query`だと部分的なSELECTでも
   通ってしまい、フルステート比較を強制できていない」と指摘があり、
-  こちらも`Query`を`Snapshot`に置き換えた。内部で常に
-  `SELECT * FROM <table>`を発行するため、カラムを選んで一部だけ検証
-  する抜け道が無い。
+  `Query`を`Snapshot`に置き換えた。さらに、namespace/filter用に
+  追加した`TableQuery.Where`（生CQL文字列）も「1行だけ選んで他の行を
+  隠す」という同種の抜け道になると指摘があり、`Where`/`Args`ごと
+  削除した。最終的に`Snapshot(tables ...string) (DataSet, error)`は
+  常に無条件で`SELECT * FROM <table>`を発行し、カラム・行のどちらも
+  選べない。テストごとのデータ分離はテスト独立性（`Exec`での
+  `TRUNCATE`等）で担保する方針にした。
 - 依存は`gocql/gocql`＋indirectで`golang/snappy`/
   `hailocab/go-hostpool`/`gopkg.in/inf.v0`の計4パッケージ。
 - Cassandraのブートに時間がかかる（KeyspaceのGossip/schema

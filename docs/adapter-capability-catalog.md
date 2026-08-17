@@ -122,12 +122,14 @@ HTTP/RDB/MQ/KVSいずれの`then`にも横断的に必要になるため、個�
 
 **Observation（then） — フルステートの形**
 
-フィルタ条件（テストのnamespace）にマッチする行を、テーブルごと
-まるごと（dbunitの`IDataSet`に準え、常に`SELECT *`で）取得し、期待
-する状態と構造比較する。任意のSELECT文で一部カラムだけ取得するような
-メソッドは公開せず、「フルステートしか取得できない」ことをAPIの形で
-強制する。行が存在しないことを期待する場合は空sliceを期待値にする。
-auto-incrementのID・timestampはmatcherで対処する。
+テーブルをまるごと（dbunitの`IDataSet`に準え、常に`SELECT *`・
+フィルタ無しで）取得し、期待する状態と構造比較する。任意のSELECT文で
+一部カラム・一部行だけ取得するようなメソッドは公開せず、「フル
+ステートしか取得できない」ことをAPIの形で強制する（WHERE句のような
+絞り込みも受け付けない。カラムだけでなく行の cherry-pick も防ぐ
+ため）。行が存在しないことを期待する場合は空sliceを期待値にする。
+auto-incrementのID・timestampはmatcherで対処する。テストごとの
+データ分離は、テストの独立性（Truncate等）で担保する。
 
 MySQLとPostgreSQLはこのcapabilityを共通interfaceとして共有し、
 adapter実装側でdriver・SQL方言差分（placeholder記法等）を吸収する

@@ -52,7 +52,7 @@ func TestUserSignupCassandra(t *testing.T) {
 		return db.Exec("INSERT INTO furumai_test.users (id, name) VALUES (?, ?)", 1, "Alice")
 	})
 
-	got, err := db.Snapshot(cassandra.TableQuery{Table: "furumai_test.users"})
+	got, err := db.Snapshot("furumai_test.users")
 	if err != nil {
 		t.Fatalf("snapshot: %v", err)
 	}
