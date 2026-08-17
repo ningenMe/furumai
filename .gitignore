@@ -5,3 +5,9 @@
 *.exe
 *.test
 *.out
+
+# Local secrets/credentials (should never be committed)
+.env
+.env.*
+*.pem
+*.key
