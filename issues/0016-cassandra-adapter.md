@@ -14,9 +14,10 @@ related: docs/adapter-capability-catalog.md, issues/0009-mysql-adapter-mvp.md
 - カタログにNoSQL大分類とCassandra/DynamoDBのcapability記述を追加
   （この2つは互いに共通capabilityを持たないことを明記する）
 - Stimulus adapter: `Exec(cql, args...)`
-- Observation: `Query(cql, args...)`で取得した`[]Row`
-  （`Row = map[string]any`、`adapter/mysql`/`adapter/postgres`と
-  同じ形）を返す
+- Observation: `Snapshot(queries ...TableQuery) (DataSet, error)`で
+  テーブルごとの`[]Row`（`Row = map[string]any`）を返す。
+  `adapter/mysql`/`adapter/postgres`と同じ、dbunit準拠の
+  full-state-forcing interface
 
 ## 制約
 
@@ -29,15 +30,21 @@ related: docs/adapter-capability-catalog.md, issues/0009-mysql-adapter-mvp.md
 
 ## Definition of Done
 
-- CQLでrowに刺激を与え、`Query`で取得した`[]Row`を
+- CQLでrowに刺激を与え、`Snapshot`で取得した`DataSet`を
   `furumai.ThenEqual`で検証するサンプルテストがCI上で実際に実行でき、
   期待通りにpass/failが判定される
 
 ## 実装メモ
 
-- `adapter/cassandra`に`Stimulus`（`Exec`/`Query`）を実装。gocqlの
-  `MapScan`が列を素のGo型（`[]byte`ではなく）で返すため、
-  `adapter/mysql`/`adapter/postgres`のような`normalize`は不要だった。
+- `adapter/cassandra`に`Stimulus`（`Exec`/`Snapshot`）、`Row`、
+  `TableQuery`、`DataSet`を実装。gocqlの`MapScan`が列を素のGo型
+  （`[]byte`ではなく）で返すため、`adapter/mysql`/`adapter/postgres`
+  のような`normalize`は不要だった。
+- MySQL側(#13)のレビューで「生SQLを取る`Query`だと部分的なSELECTでも
+  通ってしまい、フルステート比較を強制できていない」と指摘があり、
+  こちらも`Query`を`Snapshot`に置き換えた。内部で常に
+  `SELECT * FROM <table>`を発行するため、カラムを選んで一部だけ検証
+  する抜け道が無い。
 - 依存は`gocql/gocql`＋indirectで`golang/snappy`/
   `hailocab/go-hostpool`/`gopkg.in/inf.v0`の計4パッケージ。
 - Cassandraのブートに時間がかかる（KeyspaceのGossip/schema

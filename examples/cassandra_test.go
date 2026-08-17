@@ -10,8 +10,9 @@ import (
 )
 
 // TestUserSignupCassandra demonstrates the Cassandra Stimulus/Observation
-// adapter: given/when write row state via CQL, then queries the resulting
-// rows and compares them structurally against an expected value.
+// adapter: given/when write row state via CQL, then Snapshot fetches the
+// resulting full table state and compares it structurally against an
+// expected value.
 //
 // Requires a real Cassandra cluster; set CASSANDRA_HOSTS (comma-separated)
 // to run it. CI provides this via a service container. The keyspace must
@@ -51,12 +52,14 @@ func TestUserSignupCassandra(t *testing.T) {
 		return db.Exec("INSERT INTO furumai_test.users (id, name) VALUES (?, ?)", 1, "Alice")
 	})
 
-	got, err := db.Query("SELECT id, name FROM furumai_test.users")
+	got, err := db.Snapshot(cassandra.TableQuery{Table: "furumai_test.users"})
 	if err != nil {
-		t.Fatalf("query: %v", err)
+		t.Fatalf("snapshot: %v", err)
 	}
 
-	furumai.ThenEqual(t, got, []cassandra.Row{
-		{"id": 1, "name": "Alice"},
+	furumai.ThenEqual(t, got, cassandra.DataSet{
+		"furumai_test.users": []cassandra.Row{
+			{"id": 1, "name": "Alice"},
+		},
 	})
 }
