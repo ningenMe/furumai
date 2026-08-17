@@ -11,11 +11,11 @@ capability形状を持つと決めていたPostgreSQLを実装する。
 
 ## やること
 
-- `adapter/mysql`と同じ形（`Exec`/`Seed`/`Truncate`/`Query`、`Row =
-  map[string]any`）を`adapter/postgres`として実装する
+- `adapter/mysql`と同じ形（`Exec`/`Seed`/`Truncate`/`Snapshot`、
+  `Row = map[string]any`）を`adapter/postgres`として実装する
 - placeholder記法の違い（MySQL: `?`、PostgreSQL: `$1,$2,...`）を
-  adapter内部で吸収する（`Seed`のクエリ組み立てのみ）。`Exec`/`Query`
-  は生SQLを渡す方式のまま（呼び出し側が`$N`を書く）
+  adapter内部で吸収する（`Seed`のクエリ組み立てのみ）。`Exec`は
+  生SQLを渡す方式のまま（呼び出し側が`$N`を書く）
 
 ## 制約
 
@@ -29,14 +29,20 @@ capability形状を持つと決めていたPostgreSQLを実装する。
 
 ## Definition of Done
 
-- `Exec`/`Seed`/`Truncate`でDBに刺激を与え、`Query`で取得した
-  `[]Row`を`furumai.ThenEqual`で検証するサンプルテストがCI上で
+- `Exec`/`Seed`/`Truncate`でDBに刺激を与え、`Snapshot`で取得した
+  `DataSet`を`furumai.ThenEqual`で検証するサンプルテストがCI上で
   実際に実行でき、期待通りにpass/failが判定される
 
 ## 実装メモ
 
 - `adapter/mysql`とほぼ同一構造。差分はdriver（`pgx`）とplaceholder
   記法、identifier quoting（`` ` `` → `"`）のみ。
+- MySQL側(#13)のレビューで「生SQLを取る`Query`だと部分的なSELECTでも
+  通ってしまい、フルステート比較を強制できていない」と指摘があり、
+  こちらも`Query`を`Snapshot(queries ...TableQuery) (DataSet,
+  error)`に置き換えた。dbunitの`IDataSet`に準え、内部で常に
+  `SELECT *`を発行するため、カラムを選んで一部だけ検証する抜け道が
+  無い。
 - `pgx/v5`の追加でtransitive依存が5パッケージ増える
   （`pgpassfile`/`pgservicefile`/`puddle/v2`/`x/sync`/`x/text`）。
   `go-sql-driver/mysql`（1つ）より重いが、pure GoでPostgreSQL用に

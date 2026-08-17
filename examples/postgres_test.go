@@ -40,12 +40,14 @@ func TestUserSignupPostgres(t *testing.T) {
 		return db.Seed("users", map[string]any{"id": 1, "name": "Alice"})
 	})
 
-	got, err := db.Query("SELECT id, name FROM users ORDER BY id")
+	got, err := db.Snapshot(postgres.TableQuery{Table: "users"})
 	if err != nil {
-		t.Fatalf("query: %v", err)
+		t.Fatalf("snapshot: %v", err)
 	}
 
-	furumai.ThenEqual(t, got, []postgres.Row{
-		{"id": int32(1), "name": "Alice"},
+	furumai.ThenEqual(t, got, postgres.DataSet{
+		"users": []postgres.Row{
+			{"id": int32(1), "name": "Alice"},
+		},
 	})
 }
