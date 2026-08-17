@@ -42,7 +42,7 @@ func TestUserSignup(t *testing.T) {
 		return db.Seed("users", map[string]any{"id": 1, "name": "Alice"})
 	})
 
-	got, err := db.Snapshot(mysql.TableQuery{Table: "users"})
+	got, err := db.Snapshot("users")
 	if err != nil {
 		t.Fatalf("snapshot: %v", err)
 	}

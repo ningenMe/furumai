@@ -14,12 +14,13 @@ adapterとしてMySQLを実装する。
 
 - Stimulus adapter: `Exec(query, args...)` / `Seed(table, rows...)` /
   `Truncate(tables...)`
-- Observation: `Snapshot(queries ...TableQuery) (DataSet, error)` で
+- Observation: `Snapshot(tables ...string) (DataSet, error)` で
   `DataSet`（テーブル名→`[]Row`のフルステート）を取得し、
   `furumai.Diff`/`furumai.ThenEqual`でそのまま構造比較できるように
-  する。dbunitの`IDataSet`に準え、`SELECT *`を強制することで
-  「部分的なSELECTで一部カラムだけ検証してしまう」抜け道を型/API上
-  無くす（生SQLを取る`Query`のような汎用メソッドは公開しない）
+  する。dbunitの`IDataSet`に準え、`SELECT *`・フィルタ無しを強制する
+  ことで「部分的なSELECTで一部カラム・一部行だけ検証してしまう」
+  抜け道を型/API上無くす（生SQLを取る`Query`のような汎用メソッドや
+  WHERE句は公開しない）
 - クエリ組み立て・値の正規化などDB接続不要なロジックは通常のunit test
   でカバーする
 - 実際のDB接続を要するテストは、環境変数（`MYSQL_DSN`）が無ければ
@@ -47,17 +48,22 @@ adapterとしてMySQLを実装する。
 ## 実装メモ
 
 - `adapter/mysql`に`Stimulus`（`Exec`/`Seed`/`Truncate`/`Snapshot`）、
-  `Row`（`map[string]any`）、`TableQuery{Table, Where, Args}`、
-  `DataSet`（`map[string]any`、値は通常`[]Row`だが`furumai.AnyOrder`
-  でラップできるよう`any`型）を実装。driverは`go-sql-driver/mysql`
-  （pure Go、transitive依存は`filippo.io/edwards25519`1つのみ）。
+  `Row`（`map[string]any`）、`DataSet`（`map[string]any`、値は通常
+  `[]Row`だが`furumai.AnyOrder`でラップできるよう`any`型）を実装。
+  driverは`go-sql-driver/mysql`（pure Go、transitive依存は
+  `filippo.io/edwards25519`1つのみ）。
 - 当初`Query(query, args...) ([]Row, error)`という生SQLを取る
   Observationメソッドだったが、レビューで「部分的なSELECT（一部
   カラムだけ）でも構文上は通ってしまい、フルステート比較を型/API上
-  強制できていない」との指摘を受け、`Snapshot`/`TableQuery`/
-  `DataSet`に置き換えた。`Snapshot`は内部で常に`SELECT *`を発行する
-  ため、呼び出し側がカラムを選んで一部だけ検証する抜け道が無い
-  （dbunitの`IDataSet`/`QueryDataSet`に相当する設計）。
+  強制できていない」との指摘を受け`Snapshot`に置き換えた。次に、
+  namespace/filter用に追加した`TableQuery{Table, Where, Args}`の
+  `Where`（生SQL文字列）も「1行だけ選んで他の行を隠す」という同種の
+  抜け道になると指摘を受け、`Where`/`Args`ごと削除した。最終的に
+  `Snapshot(tables ...string) (DataSet, error)`は常に無条件で
+  `SELECT * FROM table`を発行し、カラム・行のどちらも選べない
+  （dbunitの`IDataSet`/`QueryDataSet`に相当する設計）。テストごとの
+  データ分離はnamespace/filterではなくテスト独立性（`Truncate`等）で
+  担保する方針にした。
 - `Row`はmap値が`any`型なので、matcherをそのまま埋め込める
   （`adapter/rest`のHeaders/Bodyと同じ設計）。`DataSet`も同様に値を
   `any`型にして、テーブル単位で`furumai.AnyOrder`をかけられるように
