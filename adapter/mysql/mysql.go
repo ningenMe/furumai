@@ -12,7 +12,7 @@ import (
 
 // Stimulus runs SQL against DB. It is used from both given and when steps,
 // since Stimulus adapters are shared between them, and also serves as the
-// Observation side via Query.
+// Observation side via Snapshot.
 type Stimulus struct {
 	DB *sql.DB
 }
@@ -81,11 +81,46 @@ func (s *Stimulus) Truncate(tables ...string) error {
 // ...) can be substituted for any column since map values are any-typed.
 type Row map[string]any
 
-// Query runs query and returns every matching row as the full-state
-// Observation. Compare the result against an expected []Row with
-// furumai.Diff/furumai.ThenEqual (wrap the expectation in furumai.AnyOrder
-// if row order isn't significant).
-func (s *Stimulus) Query(query string, args ...any) ([]Row, error) {
+// TableQuery scopes one table within a Snapshot call to a WHERE clause
+// (the test's namespace/filter, per docs/adapter-capability-catalog.md's
+// scoping convention). Where may be empty to fetch every row.
+type TableQuery struct {
+	Table string
+	Where string
+	Args  []any
+}
+
+// DataSet is the full-state Observation for one or more tables, modeled on
+// dbunit's IDataSet: every column of every matching row, per table. Values
+// are any-typed (rather than []Row) so a table's rows can be wrapped in
+// furumai.AnyOrder when row order isn't significant.
+//
+// There is deliberately no way to build a DataSet from a partial query
+// (no column list, no raw SQL): Snapshot always selects every column, so
+// "full state" isn't something a caller can accidentally opt out of.
+type DataSet map[string]any
+
+// Snapshot fetches the full state of every table in queries (SELECT *,
+// each scoped by its own Where/Args) as a single DataSet, for structural
+// comparison with furumai.Diff/furumai.ThenEqual.
+func (s *Stimulus) Snapshot(queries ...TableQuery) (DataSet, error) {
+	result := make(DataSet, len(queries))
+	for _, q := range queries {
+		rows, err := s.selectAll(q.Table, q.Where, q.Args...)
+		if err != nil {
+			return nil, fmt.Errorf("snapshot %s: %w", q.Table, err)
+		}
+		result[q.Table] = rows
+	}
+	return result, nil
+}
+
+func (s *Stimulus) selectAll(table, where string, args ...any) ([]Row, error) {
+	query := "SELECT * FROM `" + table + "`"
+	if where != "" {
+		query += " WHERE " + where
+	}
+
 	rows, err := s.DB.Query(query, args...)
 	if err != nil {
 		return nil, err

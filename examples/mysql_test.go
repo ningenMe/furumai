@@ -9,8 +9,9 @@ import (
 )
 
 // TestUserSignup demonstrates the MySQL Stimulus/Observation adapter:
-// given/when seed and mutate table state, then queries the resulting rows
-// and compares them structurally against an expected value.
+// given/when seed and mutate table state, then Snapshot fetches the
+// resulting full table state and compares it structurally against an
+// expected value.
 //
 // Requires a real MySQL server; set MYSQL_DSN to run it (see
 // go-sql-driver/mysql's DSN format). CI provides this via a service
@@ -41,12 +42,14 @@ func TestUserSignup(t *testing.T) {
 		return db.Seed("users", map[string]any{"id": 1, "name": "Alice"})
 	})
 
-	got, err := db.Query("SELECT id, name FROM users ORDER BY id")
+	got, err := db.Snapshot(mysql.TableQuery{Table: "users"})
 	if err != nil {
-		t.Fatalf("query: %v", err)
+		t.Fatalf("snapshot: %v", err)
 	}
 
-	furumai.ThenEqual(t, got, []mysql.Row{
-		{"id": int64(1), "name": "Alice"},
+	furumai.ThenEqual(t, got, mysql.DataSet{
+		"users": []mysql.Row{
+			{"id": int64(1), "name": "Alice"},
+		},
 	})
 }
