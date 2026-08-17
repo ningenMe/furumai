@@ -53,3 +53,11 @@ adapterの組み合わせやすさ、フルステート+matcherのassertion mode
   とどう統合するか
 - サンプルアプリ自体のメンテナンス（adapterのAPIが変わった際に追従が
   必要になる）をどう位置付けるか
+- **テストケースのスコープと分離した「1回だけのsetup」の扱い**
+  （MySQL adapter PR #13のレビューより）: `examples/*_test.go`（unit
+  test相当）ではテーブル作成等をテストケース内で都度発行しても許容
+  したが、本issueが対象とする「`furumai`コマンドを実際に叩くe2e
+  テスト」では、スキーマ作成のような「テスト全体の最初に1回だけ
+  行いたいsetup」を、個々のテストケース（given/when/then）のスコープ
+  から明確に分離できるIFが必要になりそう。Goの`TestMain`をそのまま
+  使うか、furumai側で薄いwrapperを用意するかは要検討
