@@ -76,14 +76,17 @@ adapterとしてMySQLを実装する。
   CIの`services: mysql`サービスコンテナに寄せた（ローカルへの
   mysql-server直接installはしない方針）。
 - レビューで「seed/期待値は静的なfixtureとして持ちたい（dbunit
-  準拠）、2行以上・順序不問のテストにしたい」との指摘を受け、
-  `adapter/mysql`に`LoadCSV(path) ([]Row, error)`を追加した。ヘッダ行+
-  データ行のCSVを読み、セルはint64→float64→string の順で型推定する
-  （`normalize`後のDB値と型が揃うようにするための簡易ヒューリスティク
-  ス。DBの列型は見ていないので"007"のようなゼロ埋めは崩れる、
-  という制約をdoc commentに明記）。`examples/testdata/mysql_users.csv`
-  を用意し、同じfixtureをSeed入力とexpected（`furumai.AnyOrder`で
-  ラップ）の両方に使う形にした。
+  準拠）、2行以上・順序不問のテストにしたい」との指摘を受け、まず
+  `LoadCSV(path) ([]Row, error)`を実装したが、「メソッド名にファイル
+  形式（CSV）が出過ぎている」「返り値が固有の値オブジェクトに
+  なっていない（生の`[]Row`ではなく既存の`DataSet`であるべき）」との
+  レビューを受け、`LoadDataSet(paths ...string) (DataSet, error)`
+  （ファイル名からテーブル名を推測し、複数テーブルにも対応できる
+  形）に設計し直した。指摘を受けて「中身の実装より先にIFを整える」
+  方針になったため、この差分（issue #20 / PR）では
+  シグネチャのみを追加し、実装は`errors.New("not yet implemented")`
+  を返すだけのstubにしている。実装は別issueで行う。テストのexample
+  は一旦、2行・`AnyOrder`のインライン`[]mysql.Row`リテラルに戻した。
 - `CREATE TABLE`をテストケース内で都度発行している点（レビュー
   コメント）は、現状の`examples/*_test.go`はunit test相当という
   位置付けなので今回は変更しないことにした。「テスト全体の最初に

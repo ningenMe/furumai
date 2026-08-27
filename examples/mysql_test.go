@@ -34,21 +34,15 @@ func TestUserSignup(t *testing.T) {
 		t.Fatalf("create table: %v", err)
 	}
 
-	fixture, err := mysql.LoadCSV("testdata/mysql_users.csv")
-	if err != nil {
-		t.Fatalf("load fixture: %v", err)
-	}
-	seedRows := make([]map[string]any, len(fixture))
-	for i, row := range fixture {
-		seedRows[i] = row
-	}
-
 	furumai.Given(t, func() error {
 		return db.Truncate("users")
 	})
 
 	furumai.When(t, func() error {
-		return db.Seed("users", seedRows...)
+		return db.Seed("users",
+			map[string]any{"id": 1, "name": "Alice"},
+			map[string]any{"id": 2, "name": "Bob"},
+		)
 	})
 
 	got, err := db.Snapshot("users")
@@ -57,9 +51,12 @@ func TestUserSignup(t *testing.T) {
 	}
 
 	// MySQL doesn't guarantee row order without an ORDER BY, so the
-	// expected rows (loaded from the same static fixture used to seed)
-	// are compared as a multiset via AnyOrder rather than by position.
+	// expected rows are compared as a multiset via AnyOrder rather than
+	// by position.
 	furumai.ThenEqual(t, got, mysql.DataSet{
-		"users": furumai.AnyOrder(fixture),
+		"users": furumai.AnyOrder([]mysql.Row{
+			{"id": int64(1), "name": "Alice"},
+			{"id": int64(2), "name": "Bob"},
+		}),
 	})
 }
