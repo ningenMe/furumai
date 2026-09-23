@@ -12,12 +12,11 @@ on:
         required: true
         type: number
 
-concurrency:
-  group: notion-sync-${{ github.repository }}-${{ github.event.issue.number || inputs.issue_number }}
-  cancel-in-progress: false
-
 jobs:
   sync:
+    concurrency:
+      group: notion-sync-${{ github.repository }}-${{ github.event.issue.number || inputs.issue_number }}
+      cancel-in-progress: false
     permissions:
       contents: read
       issues: read
