@@ -1,0 +1,35 @@
+name: Notion Issue Sync
+
+on:
+  issues:
+    types: [opened, edited, closed, reopened]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "再同期するIssue番号"
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: notion-sync-${{ github.repository }}-${{ github.event.issue.number || inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    # publicリポジトリは誰でもIssueを作れるので、issuesイベントはowner
+    # (ningenMe)が作成/編集したIssueだけ通す。workflow_dispatchは手動実行
+    # (そもそもactions実行権限が要る)なので対象外。
+    if: github.event_name == 'workflow_dispatch' || github.event.issue.author_association == 'OWNER'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sync issue to Notion
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/notion-sync.sh
